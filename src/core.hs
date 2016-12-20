@@ -1,66 +1,195 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Schedulostfalia.Request where
 import Network.Wreq
--- Operators such as (&) and (.~).
 import Control.Lens
-import qualified Data.ByteString as ByteStringOperation
-import Text.HTML.TagSoup
 import Data.List.Split
-import qualified Data.ByteString.Char8 as ByteStringCharacterOperation
-import qualified Data.ByteString.Lazy as ByteStringLazyOperation
-
-import Language.Haskell.TH.Ppr
-
 import Data.Maybe
+import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString.Char8 as C
 
-standardHeader::ByteStringOperation.ByteString
-standardHeader = "identifier%5B%5D"
+{- public methods -}
+getSchedule course week = do
+    r <- post ("http://splus.ostfalia.de/semesterplan123.php?identifier=%23" ++ course) [(C.pack "weeks") := (C.pack (show week) )]
+    let responseBodyContent = r ^? responseBody
+    let responseBodyString = fromLazyByteStringToString responseBodyContent
+    let realBody = getBody responseBodyString
+    let table = getScheduleTable realBody
+    let tableRows = splitByTableRow table
+    let result = convertToAllTds [] tableRows
+    let readableResult = map toReadableFormat result
+    return readableResult
 
-standardValue::ByteStringOperation.ByteString
-standardValue = "%23SPLUSB3BC2B"
+{- private methods -}
 
-getBodyForOstfalia course = do
-    r <- post ("http://splus.ostfalia.de/semesterplan123.php?identifier=%23" ++ course) [standardHeader := standardValue]
-    let z = r^? responseBody
-    return (fromJust z)
+{-|
+  This function converts the given tuple of a course into a readable format by
+  converting the beginning and ending time to a tuple and the day of the week to a String.
+-}
+toReadableFormat :: (String,Integer,Integer,String,String,String) -> ((Integer,Integer),(Integer,Integer),String,String,String,String)
+toReadableFormat (a,b,c,d,e,f) = 
+    do
+        let beginningTime = convertToTime a
+        let endingTime = addMinutes beginningTime b
+        let weekday = convertDayNumberToReadableDate c
+        (beginningTime, endingTime, weekday, d, e, f)
 
-exampleTableRow = "<tr><td rowspan='1' class='row-label-one'>7:00</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td></tr>"
-exampleWithCourse = "<tr> <td rowspan='1' class='row-label-one'>12:00</td> <td class='cell-border'>&nbsp;</td> <td class='cell-border'>&nbsp;</td> <td class='cell-border'>&nbsp;</td> <td class='object-cell-border' colspan='1' rowspan='6'> <!-- START OBJECT-CELL --> <table class='object-cell-args' cellspacing='0' border='0' width='100%'> <col class='object-cell-0-1' /> <tr> <td align='center'>MA-SoftwareEngineeringProjekt</td> </tr> </table> <table class='object-cell-args' cellspacing='0' border='0' width='100%'> <col class='object-cell-1-1' /> <tr> <td align='center'></td> </tr> </table> <table class='object-cell-args' cellspacing='0' border='0' width='100%'> <col class='object-cell-2-0' /> <col class='object-cell-2-2' /> <tr> <td align='left'>H&ouml;rsaal 127</td> <td align='right'>Prof. Dr. B. M&uuml;ller</td> </tr> </table> <!-- END OBJECT-CELL --> </td> <td class='cell-border'>&nbsp;</td> <td class='cell-border'>&nbsp;</td> </tr>"
-exampleMultipleRows = "<tr> <td rowspan='1' class='row-label-one'>11:45</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td></tr><tr> <td rowspan='1' class='row-label-one'>12:00</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td><td class='object-cell-border' colspan='1' rowspan='6'> <table class='object-cell-args' cellspacing='0' border='0' width='100%'> <col class='object-cell-0-1'/> <tr> <td align='center'>MA-SoftwareEngineeringProjekt</td></tr></table> <table class='object-cell-args' cellspacing='0' border='0' width='100%'> <col class='object-cell-1-1'/> <tr> <td align='center'></td></tr></table> <table class='object-cell-args' cellspacing='0' border='0' width='100%'> <col class='object-cell-2-0'/> <col class='object-cell-2-2'/> <tr> <td align='left'>H&ouml;rsaal 127</td><td align='right'>Prof. Dr. B. M&uuml;ller</td></tr></table> </td><td class='cell-border'>&nbsp;</td><td class='cell-border'>&nbsp;</td></tr>"
+{-|
+  This is the highest level function for the parser. It takes an empty array as first argument
+  to enable recursion and the second argument as input to iterate through.
+-}
+convertToAllTds result inputRows = 
+    if null inputRows
+        then result 
+        else do
+            let bestResult = convertAllRows [] inputRows
+            bestResult
 
-splitByTableRow:: String -> [String]
-splitByTableRow input = splitOn "<tr>" input
+{-|
+  This is a function which will also take an empty array because of recursion and will take a single
+  row as argument to split it up into different table datas (courses).
+-}
+convertAllRows result input = 
+    if null input
+        then result
+        else do 
+            let tablespan = splitTableData (head input)
+            let time = getTime (head tablespan)
+            let innerResult = convertAllSpans [] tablespan time 0
+            convertAllRows (result ++ innerResult) (drop 1 input)
 
-parseBlock input = do
-    let time = getTime input
-    let name = getCourseName input
-    let room = getCourseRoom input
-    let lecturer = getCourseLecturer input
-    putStrLn time
-    putStrLn name
-    putStrLn room
-    putStrLn lecturer
+{-|
+  This is the function which will take an empty array as first argument (because of recursion), the
+  table data entries, the current time because this will be parsed once per row and a number how many
+  got deleted already. This is important because of the offset and the weekday which can be constructed
+  by this number.
+-}
+convertAllSpans result timedatas time deleted = 
+    if null timedatas
+        then result
+        else do
+            let toCheck = head timedatas
+            if (substring "object-cell-border" toCheck)
+                then do
+                    {- Parse here -}
+                    let courseName = getCourseName toCheck
+                    let courseRoom = getCourseRoom toCheck
+                    let lecturer = getCourseLecturer toCheck
+                    let getDuration = (read (getCourseDuration toCheck) :: Integer) * 15
+                    let insertTuple = (time,getDuration,deleted,courseName,courseRoom,lecturer)
+                    convertAllSpans (result ++ [insertTuple]) (drop 1 timedatas) time (deleted+1)
+                else convertAllSpans (result) (drop 1 timedatas) time (deleted+1)
 
-getTime element = Prelude.head (splitOn "<" (splitOn "one'>" (splitOn "<td" element !! 1) !! 1))
+{- Helper Functions -}
 
-isThereaCourse input = "object-cell-border" `ByteStringCharacterOperation.isInfixOf` ByteStringCharacterOperation.pack input
+{- Split functions -}
+basicSplit :: String -> String -> String -> String
+basicSplit begin end input = head (splitOn end (splitOn begin input !! 1))
 
-getSemesterFive = getBodyForOstfalia "SPLUS63AE5D"
+getCourseName :: String -> String
+getCourseName = basicSplit "<td align='center'>" "</td>"
 
-getCourseName input = 
-    if isThereaCourse input
-        then head (splitOn "</td>" (splitOn "<td align='center'>" input !! 1))
-        else ""
+getCourseRoom :: String -> String
+getCourseRoom = basicSplit "<td align='left'>" "</td>"
 
-getCourseRoom input = 
-    if isThereaCourse input
-        then head (splitOn "</td>" (splitOn "<td align='left'>" input !! 1))
-        else ""
+getCourseLecturer :: String -> String
+getCourseLecturer = basicSplit "<td align='right'>" "</td>"
 
-getCourseLecturer input = 
-    if isThereaCourse input
-        then head (splitOn "</td>" (splitOn "<td align='right'>" input !! 1))
-        else ""
+getCourseDuration :: String -> String
+getCourseDuration = basicSplit "rowspan='" "'"
 
-charToString :: Char -> String
-charToString = (:[])
+getTime :: String -> String
+getTime = basicSplit "row-label-one'>" "<"
+
+getScheduleTable :: String -> String
+getScheduleTable input = splitOn "class='grid-border-args' cellspacing='0'" input !! 1
+
+splitByTableRow :: String -> [String]
+splitByTableRow = splitOn "<tr >\r\n    <td  rowsp"
+
+splitTableData :: String -> [String]
+splitTableData = splitOn "<td   class='"
+
+getBody :: String -> String
+getBody input = splitOn "<body>" input !! 2
+
+{- Tuple -}
+firstSextuple :: (a,b,c,d,e,f) -> a
+firstSextuple (x,_,_,_,_,_) = x
+
+secondSextuple :: (a,b,c,d,e,f) -> b
+secondSextuple (_,x,_,_,_,_) = x
+
+thirdSextuple :: (a,b,c,d,e,f) -> c
+thirdSextuple (_,_,z,_,_,_) = z
+
+firstTuple :: (a,b) -> a
+firstTuple (x,_) = x
+
+incrementFirstTuple :: (Integer,Integer) -> (Integer,Integer)
+incrementFirstTuple (x,y) = (x+1, y)
+
+secondTuple :: (a,b) -> b
+secondTuple (_,x) = x
+
+incrementSecondTuple :: (Integer,Integer) -> (Integer,Integer)
+incrementSecondTuple (x,y) = (x, y+1)
+
+resetSecondTuple :: (Integer,Integer) -> (Integer,Integer)
+resetSecondTuple (x,y) = (x,0)
+
+{- Time utility -}
+convertToTime :: String -> (Integer, Integer)
+convertToTime input = 
+    do
+        let hours = getHour input
+        let minutes = getMinutes input
+        (hours,minutes)
+
+addMinutes :: (Integer, Integer) -> Integer -> (Integer, Integer)
+addMinutes time minutes = 
+    if minutes == 0
+        then time
+        else do
+            if secondTuple time >= 59 
+                then addMinutes (resetSecondTuple(incrementFirstTuple time)) (minutes - 1)
+                else addMinutes (incrementSecondTuple time) (minutes - 1)
+
+getHour :: String -> Integer
+getHour input = read(head(splitOn ":" input)) :: Integer
+
+getMinutes :: String -> Integer
+getMinutes input = read(splitOn ":" input !! 1) :: Integer
+
+days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+convertDayNumberToReadableDate :: Integer -> String
+convertDayNumberToReadableDate input = days !! fromIntegral input
+
+
+{- Text Utility -}
+fromLazyByteStringToString :: Maybe B.ByteString -> String
+fromLazyByteStringToString input = C.unpack (B.toStrict (fromJust input))
+
+substring :: String -> String -> Bool
+substring (x:xs) [] = False
+substring xs ys
+    | prefix xs ys = True
+    | substring xs (tail ys) = True
+    | otherwise = False
+
+prefix :: String -> String -> Bool
+prefix [] ys = True
+prefix (x:xs) [] = False
+prefix (x:xs) (y:ys) = (x == y) && prefix xs ys
+
+{- In Work -}
+getOffset input startTime endTime =
+    0
+
+fixOffset result input = 
+    do
+        let stringTime = firstSextuple (head input)
+        let time = convertToTime stringTime
+        let duration = secondSextuple (head input)
+        let timeEnded = addMinutes time duration
+        timeEnded
+        
