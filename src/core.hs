@@ -162,7 +162,7 @@ getMinutes input = read(splitOn ":" input !! 1) :: Integer
 days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 convertDayNumberToReadableDate :: Integer -> String
-convertDayNumberToReadableDate input = days !! fromIntegral input
+convertDayNumberToReadableDate input = days !! fromIntegral (input - 1)
 
 
 {- Text Utility -}
