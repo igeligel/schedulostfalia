@@ -2,13 +2,14 @@
 import Network.Wreq
 import Control.Lens
 import Data.List.Split
-import Data.Maybe
-import qualified Data.ByteString.Lazy as B
-import qualified Data.ByteString.Char8 as C
+import TextUtility
+import HttpUtility
+
+{-post ("http://splus.ostfalia.de/semesterplan123.php?identifier=%23" ++ course) (packWeeks week)-}
 
 {- public methods -}
 getSchedule course week = do
-    r <- post ("http://splus.ostfalia.de/semesterplan123.php?identifier=%23" ++ course) [(C.pack "weeks") := (C.pack (show week) )]
+    r <- schedulePost course week
     let responseBodyContent = r ^? responseBody
     let responseBodyString = fromLazyByteStringToString responseBodyContent
     let realBody = getBody responseBodyString
@@ -17,8 +18,6 @@ getSchedule course week = do
     let result = convertToAllTds [] tableRows
     let readableResult = map toReadableFormat result
     return readableResult
-
-{- private methods -}
 
 {-|
   This function converts the given tuple of a course into a readable format by
@@ -67,7 +66,7 @@ convertAllSpans result timedatas time deleted =
         then result
         else do
             let toCheck = head timedatas
-            if (substring "object-cell-border" toCheck)
+            if substring "object-cell-border" toCheck
                 then do
                     {- Parse here -}
                     let courseName = getCourseName toCheck
@@ -76,7 +75,7 @@ convertAllSpans result timedatas time deleted =
                     let getDuration = (read (getCourseDuration toCheck) :: Integer) * 15
                     let insertTuple = (time,getDuration,deleted,courseName,courseRoom,lecturer)
                     convertAllSpans (result ++ [insertTuple]) (drop 1 timedatas) time (deleted+1)
-                else convertAllSpans (result) (drop 1 timedatas) time (deleted+1)
+                else convertAllSpans result (drop 1 timedatas) time (deleted+1)
 
 {- Helper Functions -}
 
@@ -145,13 +144,12 @@ convertToTime input =
         (hours,minutes)
 
 addMinutes :: (Integer, Integer) -> Integer -> (Integer, Integer)
-addMinutes time minutes = 
-    if minutes == 0
-        then time
-        else do
-            if secondTuple time >= 59 
-                then addMinutes (resetSecondTuple(incrementFirstTuple time)) (minutes - 1)
-                else addMinutes (incrementSecondTuple time) (minutes - 1)
+addMinutes time minutes
+  | minutes == 0 = time
+  | secondTuple time >= 59 =
+    addMinutes (resetSecondTuple (incrementFirstTuple time))
+      (minutes - 1)
+  | otherwise = addMinutes (incrementSecondTuple time) (minutes - 1)
 
 getHour :: String -> Integer
 getHour input = read(head(splitOn ":" input)) :: Integer
@@ -164,22 +162,6 @@ days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sun
 convertDayNumberToReadableDate :: Integer -> String
 convertDayNumberToReadableDate input = days !! fromIntegral (input - 1)
 
-
-{- Text Utility -}
-fromLazyByteStringToString :: Maybe B.ByteString -> String
-fromLazyByteStringToString input = C.unpack (B.toStrict (fromJust input))
-
-substring :: String -> String -> Bool
-substring (x:xs) [] = False
-substring xs ys
-    | prefix xs ys = True
-    | substring xs (tail ys) = True
-    | otherwise = False
-
-prefix :: String -> String -> Bool
-prefix [] ys = True
-prefix (x:xs) [] = False
-prefix (x:xs) (y:ys) = (x == y) && prefix xs ys
 
 {- In Work -}
 getOffset input startTime endTime =
