@@ -5,8 +5,6 @@ import Data.List.Split
 import TextUtility
 import HttpUtility
 
-{-post ("http://splus.ostfalia.de/semesterplan123.php?identifier=%23" ++ course) (packWeeks week)-}
-
 {- public methods -}
 getSchedule course week = do
     r <- schedulePost course week
@@ -130,7 +128,7 @@ secondTuple :: (a,b) -> b
 secondTuple (_,x) = x
 
 incrementSecondTuple :: (Integer,Integer) -> (Integer,Integer)
-incrementSecondTuple (x,y) = (x, y+1)
+incrementSecondTuple (x,y) = (x, succ y)
 
 resetSecondTuple :: (Integer,Integer) -> (Integer,Integer)
 resetSecondTuple (x,y) = (x,0)
