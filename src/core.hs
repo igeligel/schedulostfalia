@@ -33,12 +33,9 @@ toReadableFormat (a,b,c,d,e,f) =
   This is the highest level function for the parser. It takes an empty array as first argument
   to enable recursion and the second argument as input to iterate through.
 -}
-convertToAllTds result inputRows = 
-    if null inputRows
-        then result 
-        else do
-            let bestResult = convertAllRows [] inputRows
-            bestResult
+convertToAllTds result inputRows
+    | null inputRows = result
+    | otherwise = convertAllRows [] inputRows
 
 {-|
   This is a function which will also take an empty array because of recursion and will take a single
