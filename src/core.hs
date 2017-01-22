@@ -44,14 +44,13 @@ convertToAllTds result inputRows =
   This is a function which will also take an empty array because of recursion and will take a single
   row as argument to split it up into different table datas (courses).
 -}
-convertAllRows result input = 
-    if null input
-        then result
-        else do 
-            let tablespan = splitTableData (head input)
-            let time = getTime (head tablespan)
-            let innerResult = convertAllSpans [] tablespan time 0
-            convertAllRows (result ++ innerResult) (drop 1 input)
+convertAllRows result input
+    | null input = result
+    | otherwise = convertAllRows (result ++ innerResult) (drop 1 input)
+    where tablespan = splitTableData (head input)
+          time = getTime (head tablespan)
+          innerResult = convertAllSpans [] tablespan time 0
+          
 
 {-|
   This is the function which will take an empty array as first argument (because of recursion), the
