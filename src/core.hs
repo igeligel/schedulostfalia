@@ -4,17 +4,18 @@ import Control.Lens
 import Data.List.Split
 import TextUtility
 import HttpUtility
+import TupleUtility
 
 {- public methods -}
 getSchedule course week = do
     r <- schedulePost course week
     let responseBodyContent = r ^? responseBody
-    let responseBodyString = fromLazyByteStringToString responseBodyContent
-    let realBody = getBody responseBodyString
-    let table = getScheduleTable realBody
-    let tableRows = splitByTableRow table
-    let result = convertToAllTds [] tableRows
-    let readableResult = map toReadableFormat result
+    let responseBodyString  = fromLazyByteStringToString responseBodyContent
+    let realBody            = getBody responseBodyString
+    let table               = getScheduleTable realBody
+    let tableRows           = splitByTableRow table
+    let result              = convertToAllTds [] tableRows
+    let readableResult      = map toReadableFormat result
     return readableResult
 
 {-|
@@ -35,7 +36,7 @@ toReadableFormat (a,b,c,d,e,f) =
 -}
 convertToAllTds result inputRows
     | null inputRows = result
-    | otherwise = convertAllRows [] inputRows
+    | otherwise      = convertAllRows [] inputRows
 
 {-|
   This is a function which will also take an empty array because of recursion and will take a single
@@ -43,9 +44,9 @@ convertToAllTds result inputRows
 -}
 convertAllRows result input
     | null input = result
-    | otherwise = convertAllRows (result ++ innerResult) (drop 1 input)
-    where tablespan = splitTableData (head input)
-          time = getTime (head tablespan)
+    | otherwise  = convertAllRows (result ++ innerResult) (drop 1 input)
+    where tablespan   = splitTableData (head input)
+          time        = getTime (head tablespan)
           innerResult = convertAllSpans [] tablespan time 0
 
 {-|
@@ -100,31 +101,6 @@ splitTableData = splitOn "<td   class='"
 getBody :: String -> String
 getBody input = splitOn "<body>" input !! 2
 
-{- Tuple -}
-firstSextuple :: (a,b,c,d,e,f) -> a
-firstSextuple (x,_,_,_,_,_) = x
-
-secondSextuple :: (a,b,c,d,e,f) -> b
-secondSextuple (_,x,_,_,_,_) = x
-
-thirdSextuple :: (a,b,c,d,e,f) -> c
-thirdSextuple (_,_,z,_,_,_) = z
-
-firstTuple :: (a,b) -> a
-firstTuple (x,_) = x
-
-incrementFirstTuple :: (Integer,Integer) -> (Integer,Integer)
-incrementFirstTuple (x,y) = (x+1, y)
-
-secondTuple :: (a,b) -> b
-secondTuple (_,x) = x
-
-incrementSecondTuple :: (Integer,Integer) -> (Integer,Integer)
-incrementSecondTuple (x,y) = (x, succ y)
-
-resetSecondTuple :: (Integer,Integer) -> (Integer,Integer)
-resetSecondTuple (x,y) = (x,0)
-
 {- Time utility -}
 convertToTime :: String -> (Integer, Integer)
 convertToTime input = 
@@ -135,11 +111,9 @@ convertToTime input =
 
 addMinutes :: (Integer, Integer) -> Integer -> (Integer, Integer)
 addMinutes time minutes
-  | minutes == 0 = time
-  | secondTuple time >= 59 =
-    addMinutes (resetSecondTuple (incrementFirstTuple time))
-      (minutes - 1)
-  | otherwise = addMinutes (incrementSecondTuple time) (minutes - 1)
+  | minutes == 0           = time
+  | secondTuple time >= 59 = addMinutes (resetSecondTuple (incrementFirstTuple time)) (minutes - 1)
+  | otherwise              = addMinutes (incrementSecondTuple time) (minutes - 1)
 
 getHour :: String -> Integer
 getHour input = read(head(splitOn ":" input)) :: Integer
@@ -147,21 +121,8 @@ getHour input = read(head(splitOn ":" input)) :: Integer
 getMinutes :: String -> Integer
 getMinutes input = read(splitOn ":" input !! 1) :: Integer
 
+days :: [String]
 days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 convertDayNumberToReadableDate :: Integer -> String
 convertDayNumberToReadableDate input = days !! fromIntegral (input - 1)
-
-
-{- In Work -}
-getOffset input startTime endTime =
-    0
-
-fixOffset result input = 
-    do
-        let stringTime = firstSextuple (head input)
-        let time = convertToTime stringTime
-        let duration = secondSextuple (head input)
-        let timeEnded = addMinutes time duration
-        timeEnded
-        
