@@ -1,12 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Network.Wreq
 import Control.Lens
-import Data.List.Split
 import TextUtility
 import HttpUtility
 import TupleUtility
+import TimeUtility
 
-{- public methods -}
+{-|
+    This is the main function used in the program to get schedules of the Ostfalia.
+-}
 getSchedule course week = do
     r <- schedulePost course week
     let responseBodyContent = r ^? responseBody
@@ -19,8 +21,8 @@ getSchedule course week = do
     return readableResult
 
 {-|
-  This function converts the given tuple of a course into a readable format by
-  converting the beginning and ending time to a tuple and the day of the week to a String.
+    This function converts the given tuple of a course into a readable format by
+    converting the beginning and ending time to a tuple and the day of the week to a String.
 -}
 toReadableFormat :: (String,Integer,Integer,String,String,String) -> ((Integer,Integer),(Integer,Integer),String,String,String,String)
 toReadableFormat (a,b,c,d,e,f) = 
@@ -67,62 +69,3 @@ convertAllSpans result timedatas time deleted
         lecturer    = getCourseLecturer toCheck
         getDuration = (read (getCourseDuration toCheck) :: Integer) * 15
         insertTuple = (time,getDuration,deleted,courseName,courseRoom,lecturer)
-
-{- Helper Functions -}
-
-{- Split functions -}
-basicSplit :: String -> String -> String -> String
-basicSplit begin end input = head (splitOn end (splitOn begin input !! 1))
-
-getCourseName :: String -> String
-getCourseName = basicSplit "<td align='center'>" "</td>"
-
-getCourseRoom :: String -> String
-getCourseRoom = basicSplit "<td align='left'>" "</td>"
-
-getCourseLecturer :: String -> String
-getCourseLecturer = basicSplit "<td align='right'>" "</td>"
-
-getCourseDuration :: String -> String
-getCourseDuration = basicSplit "rowspan='" "'"
-
-getTime :: String -> String
-getTime = basicSplit "row-label-one'>" "<"
-
-getScheduleTable :: String -> String
-getScheduleTable input = splitOn "class='grid-border-args' cellspacing='0'" input !! 1
-
-splitByTableRow :: String -> [String]
-splitByTableRow = splitOn "<tr >\r\n    <td  rowsp"
-
-splitTableData :: String -> [String]
-splitTableData = splitOn "<td   class='"
-
-getBody :: String -> String
-getBody input = splitOn "<body>" input !! 2
-
-{- Time utility -}
-convertToTime :: String -> (Integer, Integer)
-convertToTime input = 
-    do
-        let hours = getHour input
-        let minutes = getMinutes input
-        (hours,minutes)
-
-addMinutes :: (Integer, Integer) -> Integer -> (Integer, Integer)
-addMinutes time minutes
-  | minutes == 0           = time
-  | secondTuple time >= 59 = addMinutes (resetSecondTuple (incrementFirstTuple time)) (minutes - 1)
-  | otherwise              = addMinutes (incrementSecondTuple time) (minutes - 1)
-
-getHour :: String -> Integer
-getHour input = read(head(splitOn ":" input)) :: Integer
-
-getMinutes :: String -> Integer
-getMinutes input = read(splitOn ":" input !! 1) :: Integer
-
-days :: [String]
-days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
-convertDayNumberToReadableDate :: Integer -> String
-convertDayNumberToReadableDate input = days !! fromIntegral (input - 1)
