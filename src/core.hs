@@ -50,7 +50,6 @@ convertAllRows result input
     where tablespan = splitTableData (head input)
           time = getTime (head tablespan)
           innerResult = convertAllSpans [] tablespan time 0
-          
 
 {-|
   This is the function which will take an empty array as first argument (because of recursion), the
@@ -58,21 +57,18 @@ convertAllRows result input
   got deleted already. This is important because of the offset and the weekday which can be constructed
   by this number.
 -}
-convertAllSpans result timedatas time deleted = 
-    if null timedatas
-        then result
-        else do
-            let toCheck = head timedatas
-            if substring "object-cell-border" toCheck
-                then do
-                    {- Parse here -}
-                    let courseName = getCourseName toCheck
-                    let courseRoom = getCourseRoom toCheck
-                    let lecturer = getCourseLecturer toCheck
-                    let getDuration = (read (getCourseDuration toCheck) :: Integer) * 15
-                    let insertTuple = (time,getDuration,deleted,courseName,courseRoom,lecturer)
-                    convertAllSpans (result ++ [insertTuple]) (drop 1 timedatas) time (deleted+1)
-                else convertAllSpans result (drop 1 timedatas) time (deleted+1)
+convertAllSpans :: Num a => [(t, Integer, a, String, String, String)] -> [String] -> t -> a -> [(t, Integer, a, String, String, String)]
+convertAllSpans result timedatas time deleted
+    | not (null timedatas) && (substring "object-cell-border" toCheck)     = convertAllSpans (result ++ [insertTuple]) (drop 1 timedatas) time (deleted+1)
+    | not (null timedatas) && not (substring "object-cell-border" toCheck) = convertAllSpans result (drop 1 timedatas) time (deleted+1)
+    | otherwise                                                            = result
+    where
+        toCheck     = head timedatas
+        courseName  = getCourseName toCheck
+        courseRoom  = getCourseRoom toCheck
+        lecturer    = getCourseLecturer toCheck
+        getDuration = (read (getCourseDuration toCheck) :: Integer) * 15
+        insertTuple = (time,getDuration,deleted,courseName,courseRoom,lecturer)
 
 {- Helper Functions -}
 
