@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module TextUtility where
 import Data.List.Split
 import qualified Data.ByteString.Lazy as B
@@ -23,7 +24,13 @@ basicSplit :: String -> String -> String -> String
 basicSplit begin end input = head (splitOn end (splitOn begin input !! 1))
 
 getCourseName :: String -> String
-getCourseName = basicSplit "<td align='center'>" "</td>"
+getCourseName input = basicSplit "<td align='center'>" (getSplitCharacter input) input
+
+getSplitCharacter :: String -> String
+getSplitCharacter input =
+    if substring "<br>" input
+        then "<br>"
+        else "</td>"
 
 getCourseRoom :: String -> String
 getCourseRoom = basicSplit "<td align='left'>" "</td>"
