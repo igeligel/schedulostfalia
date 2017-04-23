@@ -1,4 +1,4 @@
-module TupleUtility where 
+module TupleUtility where
 
 firstSextuple :: (a,b,c,d,e,f) -> a
 firstSextuple (x,_,_,_,_,_) = x

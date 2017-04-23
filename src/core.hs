@@ -25,7 +25,7 @@ getSchedule course week = do
     converting the beginning and ending time to a tuple and the day of the week to a String.
 -}
 toReadableFormat :: (String,Integer,Integer,String,String,String) -> ((Integer,Integer),(Integer,Integer),String,String,String,String)
-toReadableFormat (a,b,c,d,e,f) = 
+toReadableFormat (a,b,c,d,e,f) =
     do
         let beginningTime = convertToTime a
         let endingTime = addMinutes beginningTime b

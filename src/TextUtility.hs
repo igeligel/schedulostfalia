@@ -1,4 +1,4 @@
-module TextUtility where 
+module TextUtility where
 import Data.List.Split
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Char8 as C
